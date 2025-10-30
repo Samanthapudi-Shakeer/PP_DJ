@@ -1,0 +1,5 @@
+## Tailoring Due to Component out of Context
+
+| Sl. No. | Name of the Out of Context component | Name of the Cyber security requirements impacted | External interfaces Document | Impact on Cyber security claims | Impact on Cyber Security Assumptions | Validations of Requirement, Assumption and Claims are done? | Remarks |
+|---------|---------------------------------------|------------------------------------------------|------------------------------|--------------------------------|-----------------------------------------|------------------------------------------------------------|---------|
+|         |                                       |                                                |                              |                                |                                         |                                                            |         |

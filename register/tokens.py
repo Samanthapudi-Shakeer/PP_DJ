@@ -1,14 +1,4 @@
-"""Utilities for issuing and validating signed session tokens.
-
-The project previously relied on Django's session cookies that are only
-understandable by the Django application itself. In order to allow the
-standalone React frontend to trust a login performed via the Django
-"register" portal we expose a compact JWT compatible token. The token is
-signed using the project's ``SECRET_KEY`` and contains an expiration claim so
-that the React application can keep relying on its existing JWT based session
-management helpers.
-"""
-
+"""Utilities for issuing and validating signed session tokens."""
 from __future__ import annotations
 
 import base64
@@ -20,7 +10,6 @@ from dataclasses import dataclass
 from typing import Any, Dict
 
 from django.conf import settings
-
 
 JWT_HEADER = {"alg": "HS256", "typ": "JWT"}
 DEFAULT_TOKEN_TTL = getattr(settings, "SESSION_TOKEN_MAX_AGE", 60 * 60)  # 1 hour
@@ -66,12 +55,7 @@ def _sign(message: str) -> bytes:
 
 
 def issue_session_token(payload: Dict[str, Any], expires_in: int | None = None) -> str:
-    """Return a signed JWT compatible token for ``payload``.
-
-    ``payload`` must contain JSON serialisable data.  ``exp`` and ``iat``
-    claims are automatically injected so that consumers that rely on the JWT
-    specification (like the React application) continue to work.
-    """
+    """Return a signed JWT compatible token for ``payload``."""
 
     ttl = expires_in if expires_in is not None else DEFAULT_TOKEN_TTL
     now = int(time.time())
@@ -87,11 +71,7 @@ def issue_session_token(payload: Dict[str, Any], expires_in: int | None = None) 
 
 
 def decode_session_token(token: str, *, leeway: int = 0) -> DecodedToken:
-    """Decode ``token`` and return its payload.
-
-    ``leeway`` can be used to allow a small grace period when checking the
-    expiration time.
-    """
+    """Decode ``token`` and return its payload."""
 
     if not token:
         raise InvalidToken("No token provided")

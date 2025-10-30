@@ -28,6 +28,7 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    "register.middleware.SimpleCORSMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
@@ -92,3 +93,38 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 SESSION_TOKEN_MAX_AGE = int(os.environ.get("SESSION_TOKEN_MAX_AGE", 60 * 60))
 REACT_APP_BASE_URL = os.environ.get("REACT_APP_BASE_URL")
 REACT_LOGIN_REDIRECT_URL = os.environ.get("REACT_LOGIN_REDIRECT_URL")
+
+_raw_cors_allowed = os.environ.get("DJANGO_CORS_ALLOWED_ORIGINS")
+if _raw_cors_allowed:
+    CORS_ALLOWED_ORIGINS = [origin.strip() for origin in _raw_cors_allowed.split(",") if origin.strip()]
+else:
+    CORS_ALLOWED_ORIGINS = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+
+CORS_ALLOW_ALL_ORIGINS = os.environ.get("DJANGO_CORS_ALLOW_ALL_ORIGINS", "false").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+CORS_ALLOW_CREDENTIALS = os.environ.get("DJANGO_CORS_ALLOW_CREDENTIALS", "true").lower() in {"1", "true", "yes", "on"}
+CORS_ALLOWED_HEADERS = [
+    header.strip()
+    for header in os.environ.get(
+        "DJANGO_CORS_ALLOWED_HEADERS",
+        "Authorization,Content-Type,X-CSRFToken",
+    ).split(",")
+    if header.strip()
+]
+CORS_ALLOWED_METHODS = [
+    method.strip().upper()
+    for method in os.environ.get(
+        "DJANGO_CORS_ALLOWED_METHODS",
+        "GET,POST,PUT,PATCH,DELETE,OPTIONS",
+    ).split(",")
+    if method.strip()
+]
+CORS_MAX_AGE = int(os.environ.get("DJANGO_CORS_MAX_AGE", 86400))

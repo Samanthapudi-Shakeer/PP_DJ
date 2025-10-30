@@ -9,8 +9,7 @@ const normaliseUrl = (value = "") => value.replace(/([^:]\/)\+/g, "$1");
 const resolveBaseUrl = () => {
   const configuredBase =
     process.env.REACT_APP_AUTH_BASE_URL || process.env.REACT_APP_DJANGO_BASE_URL || "";
-  const backendBase = process.env.REACT_APP_BACKEND_URL || "";
-  const fallback = configuredBase || backendBase || "http://localhost:8000";
+  const fallback = configuredBase || "http://localhost:9000";
   return trimTrailingSlash(fallback);
 };
 

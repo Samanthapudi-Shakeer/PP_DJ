@@ -21,6 +21,8 @@ from fastapi import APIRouter, Depends, FastAPI, HTTPException, status
 from fastapi.responses import StreamingResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+import httpx
+
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from sqlalchemy import (
     JSON,
@@ -1217,6 +1219,13 @@ ACCESS_TOKEN_EXPIRE_MINUTES = 1440
 SESSION_IDLE_TIMEOUT_MINUTES = int(os.environ.get("SESSION_IDLE_TIMEOUT_MINUTES", "30"))
 MAX_CONCURRENT_SESSIONS = max(100, int(os.environ.get("MAX_CONCURRENT_SESSIONS", "1000")))
 
+PORTAL_SESSION_TIMEOUT_SECONDS = float(
+    os.environ.get("PORTAL_SESSION_TIMEOUT_SECONDS", "5")
+)
+PORTAL_BASE_URL = os.environ.get("PORTAL_BASE_URL")
+PORTAL_VALIDATE_URL = os.environ.get("PORTAL_SESSION_VALIDATE_URL")
+PORTAL_AUTH_ENABLED = os.environ.get("ENABLE_PORTAL_AUTH_BRIDGE", "true").lower() != "false"
+
 
 security = HTTPBearer()
 
@@ -1229,8 +1238,31 @@ class SessionInfo:
     last_seen: datetime
 
 
+@dataclass
+class PortalUserInfo:
+    email: str
+    username: str
+    display_name: str
+    role: str
+
+
+@dataclass
+class PortalSessionInfo:
+    token: str
+    user: PortalUserInfo
+    issued_at: datetime
+    expires_at: datetime
+
+
+@dataclass
+class PortalSessionCacheEntry:
+    user_id: str
+    expires_at: datetime
+
+
 _session_registry: Dict[str, SessionInfo] = {}
 _revoked_tokens: Dict[str, datetime] = {}
+_portal_session_cache: Dict[str, PortalSessionCacheEntry] = {}
 _session_lock = asyncio.Lock()
 
 
@@ -1284,6 +1316,179 @@ def _store_session_locked(info: SessionInfo, now: datetime) -> None:
 
         _session_registry.pop(stalest_info.token, None)
         _remember_revoked_locked(stalest_info.token, stalest_info.expires_at, now)
+
+
+def _resolve_validate_url() -> Optional[str]:
+    if PORTAL_VALIDATE_URL:
+        resolved = PORTAL_VALIDATE_URL.rstrip("/")
+        return f"{resolved}/"
+    if PORTAL_BASE_URL:
+        resolved = f"{PORTAL_BASE_URL.rstrip('/')}/api/auth/session/validate"
+        return f"{resolved.rstrip('/')}/"
+    return "http://localhost:9000/api/auth/session/validate/"
+
+
+def _normalise_username(portal_user: PortalUserInfo) -> str:
+    candidate = portal_user.username or portal_user.display_name or portal_user.email
+    if not candidate:
+        return "user"
+    return candidate.split("@")[0]
+
+
+async def _remember_portal_session(
+    token: str, user_id: str, expires_at: datetime
+) -> None:
+    async with _session_lock:
+        _portal_session_cache[token] = PortalSessionCacheEntry(
+            user_id=user_id, expires_at=expires_at
+        )
+
+
+async def _cached_portal_user(
+    token: str,
+) -> Optional[Tuple[str, datetime]]:
+    async with _session_lock:
+        entry = _portal_session_cache.get(token)
+        if entry is None:
+            return None
+        now = _utcnow()
+        if now >= entry.expires_at:
+            _portal_session_cache.pop(token, None)
+            return None
+        return entry.user_id, entry.expires_at
+
+
+async def _ensure_portal_user(
+    session: AsyncSession, portal_user: PortalUserInfo
+) -> UserTable:
+    result = await session.execute(
+        select(UserTable).where(UserTable.email == portal_user.email)
+    )
+    user = result.scalar_one_or_none()
+
+    username = _normalise_username(portal_user)
+    role = portal_user.role or "user"
+
+    if user is None:
+        password_seed = secrets.token_urlsafe(24)
+        user = UserTable(
+            email=portal_user.email,
+            username=username,
+            role=role,
+            password_hash=hash_password(password_seed),
+        )
+        session.add(user)
+        await session.commit()
+        await session.refresh(user)
+        return user
+
+    updated = False
+    if username and user.username != username:
+        user.username = username
+        updated = True
+    if role and user.role != role:
+        user.role = role
+        updated = True
+
+    if updated:
+        await session.commit()
+        await session.refresh(user)
+
+    return user
+
+
+async def _fetch_portal_session(token: str) -> Optional[PortalSessionInfo]:
+    if not PORTAL_AUTH_ENABLED:
+        return None
+
+    validate_url = _resolve_validate_url()
+    if not validate_url:
+        return None
+
+    try:
+        async with httpx.AsyncClient(
+            timeout=PORTAL_SESSION_TIMEOUT_SECONDS,
+            follow_redirects=False,
+        ) as client:
+            response = await client.get(
+                validate_url,
+                params={"token": token},
+                headers={"Accept": "application/json"},
+            )
+    except httpx.HTTPError:
+        return None
+
+    if response.status_code != status.HTTP_200_OK:
+        return None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        return None
+
+    user_payload = payload.get("user") or {}
+    email = user_payload.get("email")
+    if not email:
+        return None
+    email = str(email).strip().lower()
+
+    try:
+        issued_at_raw = int(payload.get("issued_at"))
+        expires_at_raw = int(payload.get("expires_at"))
+    except (TypeError, ValueError):
+        return None
+
+    issued_at = datetime.fromtimestamp(issued_at_raw, tz=timezone.utc)
+    expires_at = datetime.fromtimestamp(expires_at_raw, tz=timezone.utc)
+
+    portal_user = PortalUserInfo(
+        email=email,
+        username=user_payload.get("username") or "",
+        display_name=user_payload.get("display_name") or "",
+        role=user_payload.get("role") or "user",
+    )
+
+    return PortalSessionInfo(
+        token=token,
+        user=portal_user,
+        issued_at=issued_at,
+        expires_at=expires_at,
+    )
+
+
+async def authenticate_with_portal_token(
+    token: str, session: AsyncSession
+) -> Optional[UserProfile]:
+    if not PORTAL_AUTH_ENABLED:
+        return None
+
+    cached = await _cached_portal_user(token)
+    if cached:
+        cached_user_id, cached_expiry = cached
+        try:
+            await validate_and_touch_session(
+                token, cached_user_id, expires_at=cached_expiry
+            )
+        except HTTPException:
+            async with _session_lock:
+                _portal_session_cache.pop(token, None)
+        else:
+            user = await fetch_user_by_id(session, cached_user_id)
+            if user is not None:
+                return UserProfile.model_validate(user)
+
+    portal_session = await _fetch_portal_session(token)
+    if portal_session is None:
+        return None
+
+    user = await _ensure_portal_user(session, portal_session.user)
+
+    await validate_and_touch_session(
+        token, user.id, expires_at=portal_session.expires_at
+    )
+    await _remember_portal_session(token, user.id, portal_session.expires_at)
+
+    return UserProfile.model_validate(user)
 
 
 async def register_session(user_id: str, token: str, expires_at: datetime) -> None:
@@ -1349,6 +1554,7 @@ async def revoke_user_sessions(user_id: str) -> None:
         ]
         for token, info in tokens_to_remove:
             _session_registry.pop(token, None)
+            _portal_session_cache.pop(token, None)
             _remember_revoked_locked(token, info.expires_at, now)
 
 
@@ -1358,6 +1564,7 @@ async def revoke_session_by_token(token: str) -> None:
         _prune_revoked_locked(now)
         info = _session_registry.pop(token, None)
         expires_at = info.expires_at if info else None
+        _portal_session_cache.pop(token, None)
 
         if expires_at is None:
             try:
@@ -1773,6 +1980,9 @@ async def get_current_user(
         await revoke_session_by_token(raw_token)
         raise HTTPException(status_code=401, detail="Token has expired")
     except JWTError:
+        portal_user = await authenticate_with_portal_token(raw_token, session)
+        if portal_user is not None:
+            return portal_user
         await revoke_session_by_token(raw_token)
         raise HTTPException(status_code=401, detail="Invalid authentication credentials")
 

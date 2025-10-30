@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>Metric Portal</title>
+  {% load static %}
+<link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet" id="bootstrap-css">
+
+<script src="{% static 'js/jquery-3.5.js' %}"></script>
+
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.7.0/css/font-awesome.min.css">
+</head>
+<style>
+div.main{
+    background: #0264d6; 
+    background: -moz-radial-gradient(center, ellipse cover,  #0264d6 1%, #1c2b5a 100%); 
+    /* background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(1%,#0264d6), color-stop(100%,#1c2b5a));  */
+    background: -webkit-radial-gradient(center, ellipse cover,  #0264d6 1%,#1c2b5a 100%); 
+    background: -o-radial-gradient(center, ellipse cover,  #0264d6 1%,#1c2b5a 100%); 
+    background: -ms-radial-gradient(center, ellipse cover,  #0264d6 1%,#1c2b5a 100%); 
+    background: radial-gradient(ellipse at center,  #0264d6 1%,#1c2b5a 100%); 
+    filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#0264d6', endColorstr='#1c2b5a',GradientType=1 ); 
+    height:calc(100vh);
+    width:100%;
+}
+ /* {
+  box-sizing: border-box;
+    margin:0px auto;
+
+  &:before,
+  &:after {
+    box-sizing: border-box;
+  }
+
+} */
+
+body {
+   
+    color: #606468;
+  font: 87.5%/1.5em 'Open Sans', sans-serif;
+  margin: 0;
+}
+
+a {
+	color: #eee;
+	text-decoration: none;
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
+input {
+	border: none;
+	font-family: 'Open Sans', Arial, sans-serif;
+	font-size: 14px;
+	line-height: 1.5em;
+	padding: 0;
+	-webkit-appearance: none;
+}
+
+p {
+	line-height: 1.5em;
+}
+
+/* .clearfix {
+  *zoom: 1;
+
+  &:before,
+  &:after {
+    content: ' ';
+    display: table;
+  }
+
+  &:after {
+    clear: both;
+  }
+
+} */
+
+.container {
+  left: 50%;
+  position: fixed;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/* ---------- LOGIN ---------- */
+
+#login form{
+	width: 250px;
+}
+#login, .logo{
+    display:inline-block;
+    width:40%;
+}
+#login{
+border-right:1px solid #fff;
+  padding: 0px 22px;
+  width: 59%;
+}
+.logo{
+color:#fff;
+font-size:50px;
+  line-height: 115px;
+  padding:10px;
+}
+
+#login form span.fa {
+	background-color: #fff;
+	border-radius: 3px 0px 0px 3px;
+	color: #000;
+	display: block;
+	float: left;
+	height: 50px;
+    font-size:24px;
+	line-height: 50px;
+	text-align: center;
+	width: 50px;
+}
+
+#login form input {
+	height: 50px;
+}
+fieldset{
+    padding:0;
+    border:0;
+    margin: 0;
+
+}
+#login form input[type="text"], input[type="password"] {
+	background-color: #fff;
+	border-radius: 0px 3px 3px 0px;
+	color: #000;
+	margin-bottom: 1em;
+	padding: 0 16px;
+	width: 200px;
+}
+
+#login form input[type="submit"] {
+  border-radius: 3px;
+  -moz-border-radius: 3px;
+  -webkit-border-radius: 3px;
+  background-color: #000000;
+  color: #eee;
+  font-weight: bold;
+  /* margin-bottom: 2em; */
+  text-transform: uppercase;
+  padding: 5px 10px;
+  height: 30px;
+}
+
+#login form input[type="submit"]:hover {
+	background-color: #4d4d4d;
+}
+
+#login > p {
+	text-align: center;
+}
+
+#login > p span {
+	padding-left: 5px;
+}
+.middle {
+  display: flex;
+  width: 600px;
+}
+#bottom {
+        position: absolute;
+        bottom: 0;
+        width: 100%;
+        color: #ffffff;        
+        padding: 10px -2px;
+		background-color: #026be3;
+      } 
+ 
+</style>
+<body>
+
+<div class="main">
+  {% if messages %}
+  {% for msg in messages %}
+    <div class="alert alert-danger">
+      {{msg.message}}
+    </div>
+  {% endfor %}
+{% endif %}
+	<br><br> <h1 style="color:white;font-size:50px;text-align:center;font-family:sans-serif;">MIEL-Metrics Integrated Environment for Leading project
+
+</h1> 
+
+    <div class="container">
+	<center>
+	<div class="middle">
+    <div id="login">
+        <form  method="post">
+          <fieldset class="clearfix">
+            {% csrf_token %}
+            <p ><span class="fa fa-user"></span>{{form.username}}</p> 
+            <p><span class="fa fa-lock"></span>{{form.password}}</p> 
+            <div>
+                <span style="width:30%; text-align:right;  display: inline-block;"><input type="submit" value="Sign In"></span>
+            </div>
+          </fieldset>
+		<div class="clearfix"></div>
+        </form>
+
+        <div class="clearfix"></div>
+
+    </div> <!-- end login -->
+    <div class="logo"><img src="{% static 'images/toshiba-logo.png' %}" alt="Logo" style="width:250px;height:40px;"/>      
+        <div class="clearfix"></div>
+    </div>  
+    </div>  
+	</center>
+
+    </div>
+    <div id="bottom" style="color:white;font-size:12px;text-align:center;font-family:sans-serif;">
+      <div><img src="{% static 'images/tsip-logo.png' %}" alt="Logo" style="width:200px;height:60px;display: inline;float:left;padding:10px;"/>
+      <p style="display: inline;float:right;padding:19px">Copyright © 2021, Toshiba Software India Pvt. Ltd. | PV Team All Rights Reserved</p></div></div>
+</div>
+</body>
+</html>

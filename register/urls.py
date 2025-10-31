@@ -12,6 +12,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", views.login, name="home"),
     path("login/", views.login, name="login"),
+    path("login/success/", views.post_login_bridge, name="post_login_bridge"),
     path("logout/", views.logout, name="logout"),
     path("api/auth/session/validate/", views.validate_session_token, name="validate_session_token"),
 ]

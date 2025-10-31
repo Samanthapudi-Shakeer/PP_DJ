@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.http import JsonResponse
 from django.shortcuts import redirect, render
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 from ldap3 import SAFE_SYNC, Connection, Server
 
@@ -170,7 +171,8 @@ def login(request):
             payload = build_session_payload(user_info)
             token = issue_session_token(payload)
             request.session["session_token"] = token
-            return redirect(_build_react_redirect(token))
+            success_url = f"{reverse('register:post_login_bridge')}?token={token}"
+            return redirect(success_url)
 
     return render(request, "registration/login.html", {"form": form})
 
@@ -178,6 +180,20 @@ def login(request):
 def logout(request):
     request.session.flush()
     return redirect("/login")
+
+
+def post_login_bridge(request):
+    token = request.GET.get("token") or request.session.get("session_token")
+    if not token:
+        return redirect("/login")
+
+    redirect_url = _build_react_redirect(token)
+    context = {
+        "redirect_url": redirect_url,
+        "display_name": request.session.get("username1")
+        or request.session.get("username"),
+    }
+    return render(request, "registration/post_login.html", context)
 
 
 @require_GET
